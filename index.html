@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+
+  <body></body>
+  <script type="module">
+    import * as THREE from "./node_modules/three/build/three.module.js";
+    import { OBJLoader } from "./node_modules/three/examples/jsm/loaders/OBJLoader.js";
+    import { OrbitControls } from "./node_modules/three/examples/jsm/controls/OrbitControls.js";
+    import { TransformControls } from "./node_modules/three/examples/jsm/controls/TransformControls.js";
+    let camera, scene, renderer;
+    let plane;
+    let mouse,
+      raycaster,
+      isShiftDown = false;
+
+    let rollOverMesh, rollOverMaterial;
+    let cubeGeo, cubeMaterial;
+
+    const objects = [];
+
+    init();
+    function init() {
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+      });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setClearColor("#FFFFFF", 1);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      document.body.appendChild(renderer.domElement);
+      renderer.setAnimationLoop(animate);
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(
+        45,
+        window.innerWidth / window.innerHeight,
+        1,
+        10000
+      );
+      camera.position.set(500, 800, 1300);
+      camera.lookAt(0, 0, 0);
+
+      const rollOverGeo = new THREE.BoxGeometry(50, 50, 50); // 선택 상자
+      rollOverMaterial = new THREE.MeshBasicMaterial({
+        color: "blue",
+        opacity: 0.5,
+        transparent: true,
+      });
+      rollOverMesh = new THREE.Mesh(rollOverGeo, rollOverMaterial);
+      scene.add(rollOverMesh);
+
+      // cubes
+
+      cubeGeo = new THREE.BoxGeometry(50, 50, 50); // 진실의 상자
+      cubeMaterial = new THREE.MeshLambertMaterial({
+        color: 0xfeb74c,
+        // map: new THREE.TextureLoader().load(
+        //   "textures/square-outline-textured.png"
+        // ),
+      });
+
+      // grid
+
+      const gridHelper = new THREE.GridHelper(1000, 20);
+      scene.add(gridHelper);
+    }
+
+    raycaster = new THREE.Raycaster();
+    mouse = new THREE.Vector2();
+
+    const geometry = new THREE.PlaneGeometry(1000, 1000); // 밑 바닥
+    const geometry2 = new THREE.PlaneGeometry(1000, 1000);
+    geometry.rotateX(-Math.PI / 2); // 180도
+    geometry2.rotateX(-Math.PI / 1); // 180도
+
+    plane = new THREE.Mesh(
+      geometry,
+      new THREE.MeshBasicMaterial({ color: "red", visible: false })
+    );
+
+    let plane1 = new THREE.Mesh(
+      geometry2,
+      new THREE.MeshBasicMaterial({ color: "yellow" })
+    );
+    scene.add(plane);
+    scene.add(plane1);
+
+    objects.push(plane);
+    objects.push(plane1);
+
+    document.addEventListener("mousemove", onDocumentMouseMove);
+    document.addEventListener("mousedown", onDocumentMouseDown);
+    document.addEventListener("keydown", onDocumentKeyDown);
+    document.addEventListener("keyup", onDocumentKeyUp);
+
+    let light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(0, 10, 3);
+    light.target.position.set(0, 0, 0);
+    scene.add(light);
+
+    let controls = new OrbitControls(camera, renderer.domElement);
+
+    let gridHelper = new THREE.GridHelper(50, 10);
+    scene.add(gridHelper);
+
+    let objLoader = new OBJLoader();
+    objLoader.load("./component/boxs.obj", function (object) {
+      console.log(object);
+      scene.add(object);
+      const controls1 = new TransformControls(camera, renderer.domElement);
+      controls1.attach(object);
+      controls1.addEventListener("mouseDown", function () {}, false);
+      console.log(controls1);
+      scene.add(controls1);
+
+      window.addEventListener("keydown", function (event) {
+        switch (event.key) {
+          case "w":
+            controls1.setMode("translate");
+            break;
+          case "a":
+            controls1.setMode("rotate");
+            break;
+          case "d":
+            controls1.setMode("scale");
+            break;
+        }
+      });
+    });
+
+    document.addEventListener("mouseMove", onDocumentMouseMove);
+    document.addEventListener("mouseDown", onDocumentMouseDown);
+    document.addEventListener("keydown", onDocumentKeyDown);
+    document.addEventListener("keyup", onDocumentKeyUp);
+    window.addEventListener("resize", onWindowResize);
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function onDocumentMouseMove(event) {
+      // 마우스 움직이기
+      event.preventDefault();
+
+      mouse.set(
+        (event.clientX / window.innerWidth) * 2 - 1,
+        -(event.clientY / window.innerHeight) * 2 + 1
+      );
+
+      raycaster.setFromCamera(mouse, camera);
+
+      const intersects = raycaster.intersectObjects(objects);
+
+      if (intersects.length > 0) {
+        const intersect = intersects[0];
+        console.log(intersect);
+        rollOverMesh.position.copy(intersect.point).add(intersect.face.normal); //평면 위에 놔둘 때
+        // rollOverMesh.position // 선택 상자 위치 그리드에 맞춰서
+        //   .divideScalar(50)
+        //   .floor()
+        //   .multiplyScalar(50)
+        //   .addScalar(25);
+      }
+
+      animate();
+    }
+
+    function onDocumentMouseDown(event) {
+      // 마우스 누를 때
+      event.preventDefault();
+
+      mouse.set(
+        (event.clientX / window.innerWidth) * 2 - 1,
+        -(event.clientY / window.innerHeight) * 2 + 1
+      );
+
+      raycaster.setFromCamera(mouse, camera);
+
+      const intersects = raycaster.intersectObjects(objects);
+
+      if (intersects.length > 0) {
+        const intersect = intersects[0];
+        console.log(intersect);
+
+        // delete cube
+
+        if (isShiftDown) {
+          // true 일 때, 삭제
+          if (intersect.object !== plane) {
+            scene.remove(intersect.object);
+
+            objects.splice(objects.indexOf(intersect.object), 1);
+          }
+
+          // create cube
+        } else {
+          const voxel = new THREE.Mesh(cubeGeo, cubeMaterial); // 큐브
+          voxel.position.copy(intersect.point).add(intersect.face.normal);
+          voxel.position
+            .divideScalar(50)
+            .floor()
+            .multiplyScalar(50)
+            .addScalar(25);
+          scene.add(voxel);
+
+          objects.push(voxel);
+        }
+
+        animate();
+      }
+    }
+
+    function onDocumentKeyDown(event) {
+      //클릭 누를 때
+      switch (event.keyCode) {
+        case 16:
+          isShiftDown = true;
+          break;
+      }
+    }
+
+    function onDocumentKeyUp(event) {
+      //클릭 뗐을 때
+      switch (event.keyCode) {
+        case 16:
+          isShiftDown = false;
+          break;
+      }
+    }
+
+    function animate() {
+      renderer.render(scene, camera);
+      controls.update();
+    }
+  </script>
+</html>
